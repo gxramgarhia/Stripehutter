@@ -1,2 +1,4 @@
+pyTelegramBotAPI
 requests
-user-agent
+user_agent
+
